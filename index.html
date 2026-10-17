@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Boolean Function Simplifier — Quine-McCluskey</title>
+  <style>
+    /* =====================================================================
+       CSS CUSTOM PROPERTIES — light / dark theme
+       ===================================================================== */
+    :root {
+      --bg: #f0f4f8;
+      --surface: #ffffff;
+      --surface2: #f8fafc;
+      --border: #d1dbe8;
+      --text: #1a2233;
+      --text-muted: #5a6a80;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-light: #dbeafe;
+      --success: #16a34a;
+      --success-bg: #dcfce7;
+      --error: #dc2626;
+      --error-bg: #fee2e2;
+      --warn: #d97706;
+      --warn-bg: #fef3c7;
+      --one-cell: #bbf7d0;
+      --zero-cell: #fecaca;
+      --dc-cell: #e5e7eb;
+      --radius: 10px;
+      --shadow: 0 2px 12px rgba(0,0,0,.08);
+      --font: system-ui, -apple-system, sans-serif;
+      --mono: ui-monospace, 'Cascadia Code', 'Courier New', monospace;
+    }
+    [data-theme="dark"] {
+      --bg: #0f1724;
+      --surface: #1a2540;
+      --surface2: #1e2d4a;
+      --border: #2e4070;
+      --text: #e2eaf5;
+      --text-muted: #8099bc;
+      --accent: #60a5fa;
+      --accent-hover: #93c5fd;
+      --accent-light: #1e3a6e;
+      --success: #4ade80;
+      --success-bg: #14532d;
+      --error: #f87171;
+      --error-bg: #7f1d1d;
+      --warn: #fbbf24;
+      --warn-bg: #78350f;
+      --one-cell: #166534;
+      --zero-cell: #991b1b;
+      --dc-cell: #374151;
+      --shadow: 0 2px 16px rgba(0,0,0,.4);
+    }
+
+    /* =====================================================================
+       RESET & BASE
+       ===================================================================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+      transition: background .25s, color .25s;
+    }
+    code { font-family: var(--mono); }
+
+    /* =====================================================================
+       LAYOUT
+       ===================================================================== */
+    .page-wrap { max-width: 860px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem 2rem;
+      box-shadow: var(--shadow);
+      margin-bottom: 1.5rem;
+    }
+
+    /* =====================================================================
+       HEADER
+       ===================================================================== */
+    header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .header-title h1 { font-size: 1.6rem; font-weight: 700; color: var(--accent); letter-spacing: -.5px; }
+    .header-title p { color: var(--text-muted); font-size: .875rem; margin-top: .25rem; }
+    .header-controls { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+
+    /* =====================================================================
+       BUTTONS
+       ===================================================================== */
+    .btn {
+      display: inline-flex; align-items: center; gap: .4rem;
+      padding: .5rem 1rem; border-radius: 6px; border: none;
+      cursor: pointer; font-size: .875rem; font-family: var(--font);
+      font-weight: 500; transition: background .15s, color .15s;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--border); }
+    .btn-icon { background: transparent; color: var(--text-muted); border: 1px solid var(--border); padding: .45rem .7rem; font-size: 1rem; }
+    .btn-icon:hover { color: var(--text); border-color: var(--text-muted); }
+    .btn-sm { padding: .3rem .7rem; font-size: .8rem; }
+
+    /* =====================================================================
+       FORM
+       ===================================================================== */
+    .form-grid { display: grid; gap: 1.25rem; }
+    .form-row { display: grid; gap: .4rem; }
+    label { font-weight: 600; font-size: .9rem; }
+    .label-hint { font-weight: 400; color: var(--text-muted); font-size: .8rem; margin-left: .4rem; }
+    input[type="number"], input[type="text"] {
+      width: 100%; padding: .55rem .75rem;
+      border: 1.5px solid var(--border); border-radius: 6px;
+      background: var(--surface2); color: var(--text);
+      font-size: .95rem; font-family: var(--mono); transition: border-color .15s;
+    }
+    input:focus { outline: none; border-color: var(--accent); }
+    input.error { border-color: var(--error); }
+    .field-error { color: var(--error); font-size: .82rem; margin-top: .2rem; display: none; }
+    .field-error.visible { display: block; }
+
+    /* Radio toggle */
+    .radio-group { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .radio-label {
+      display: flex; align-items: center; gap: .4rem;
+      padding: .5rem .9rem; border: 1.5px solid var(--border);
+      border-radius: 6px; cursor: pointer; font-size: .9rem; font-weight: 500;
+      transition: border-color .15s, background .15s; user-select: none;
+    }
+    .radio-label input { display: none; }
+    .radio-label.selected { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+
+    /* Collapsible */
+    details { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+    summary { padding: .6rem .85rem; cursor: pointer; font-weight: 600; font-size: .875rem; background: var(--surface2); user-select: none; list-style: none; }
+    summary::before { content: '\25B6  '; font-size: .7rem; }
+    details[open] summary::before { content: '\25BC  '; }
+    .details-body { padding: .85rem; }
+
+    /* Hint */
+    .hint { padding: .5rem .75rem; border-radius: 6px; font-size: .82rem; background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); display: none; }
+    .hint.visible { display: block; }
+
+    .action-row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin-top: .5rem; }
+
+    /* =====================================================================
+       RESULTS
+       ===================================================================== */
+    #results { display: none; }
+    .result-badge { display: inline-block; padding: .2rem .55rem; border-radius: 4px; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+    .badge-primary { background: var(--accent); color: #fff; }
+    .badge-secondary { background: var(--border); color: var(--text-muted); }
+
+    .result-primary { background: var(--accent-light); border: 2px solid var(--accent); border-radius: var(--radius); padding: 1.25rem 1.5rem; margin-bottom: 1rem; }
+    .result-primary .expr { font-size: 1.6rem; font-weight: 700; font-family: var(--mono); color: var(--accent); margin-top: .5rem; word-break: break-all; }
+    .result-secondary { border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 1rem; }
+    .result-secondary .expr { font-size: 1.15rem; font-family: var(--mono); margin-top: .35rem; }
+
+    .canonical-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: .75rem 1rem; font-family: var(--mono); font-size: .9rem; margin-bottom: 1rem; }
+    .canonical-box div + div { margin-top: .3rem; }
+
+    .copy-row { display: flex; gap: .5rem; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; }
+    .copy-feedback { font-size: .8rem; color: var(--success); display: none; }
+    .copy-feedback.visible { display: inline; }
+
+    /* =====================================================================
+       STEPS DISPLAY
+       ===================================================================== */
+    .steps-table { width: 100%; border-collapse: collapse; font-size: .85rem; font-family: var(--mono); margin-bottom: .75rem; }
+    .steps-table th, .steps-table td { border: 1px solid var(--border); padding: .35rem .6rem; text-align: left; }
+    .steps-table th { background: var(--surface2); font-weight: 700; }
+    .steps-table tr.used td { color: var(--text-muted); }
+    .steps-table tr.essential td { background: var(--success-bg); }
+
+    .step-section-title { font-size: .9rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin: 1rem 0 .4rem; }
+    .pi-chart { overflow-x: auto; margin-bottom: .75rem; }
+    .pi-chart table { font-size: .78rem; }
+    .pi-check { text-align: center; color: var(--success); font-weight: 700; }
+    .pi-essential-row td:first-child { background: var(--success-bg); font-weight: 700; }
+
+    /* =====================================================================
+       K-MAP
+       ===================================================================== */
+    .kmap-wrap { overflow-x: auto; margin-bottom: 1rem; }
+    .kmap-table { border-collapse: collapse; font-size: .88rem; font-family: var(--mono); }
+    .kmap-table th, .kmap-table td { border: 2px solid var(--border); width: 48px; height: 44px; text-align: center; vertical-align: middle; font-weight: 600; }
+    .kmap-table th { background: var(--surface2); font-size: .78rem; font-weight: 700; min-width: 52px; }
+    .kmap-one  { background: var(--one-cell);  color: var(--success); }
+    .kmap-zero { background: var(--zero-cell); color: var(--error); }
+    .kmap-dc   { background: var(--dc-cell);   color: var(--text-muted); }
+
+    /* =====================================================================
+       SELF-TEST
+       ===================================================================== */
+    .test-row { display: grid; grid-template-columns: 1.4fr 1fr 1fr auto; gap: .5rem; align-items: start; padding: .5rem 0; border-bottom: 1px solid var(--border); font-size: .83rem; }
+    .test-row:last-child { border-bottom: none; }
+    .test-label { font-weight: 600; font-family: var(--mono); }
+    .test-pass { color: var(--success); font-weight: 700; }
+    .test-fail { color: var(--error); font-weight: 700; }
+
+    /* =====================================================================
+       MISC UTILITIES
+       ===================================================================== */
+    .section-title { font-size: 1rem; font-weight: 700; margin-bottom: .75rem; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
+
+    /* Complement notation — overline mode */
+    [data-overline="true"] .prime-sym { display: none; }
+    [data-overline="true"] .lit-comp .lit-var { text-decoration: overline; }
+
+    footer { text-align: center; color: var(--text-muted); font-size: .8rem; margin-top: 2rem; }
+
+    @media (max-width: 600px) {
+      .card { padding: 1.25rem 1rem; }
+      .test-row { grid-template-columns: 1fr 1fr; }
+      .result-primary .expr { font-size: 1.2rem; }
+    }
+  </style>
+</head>
+<body data-theme="light" data-overline="false">
+<div class="page-wrap">
+
+  <!-- ================================================================
+       HEADER
+       ================================================================ -->
+  <header>
+    <div class="header-title">
+      <h1>Boolean Function Simplifier</h1>
+      <p>Quine-McCluskey algorithm &mdash; SOP &amp; POS &mdash; Step-by-step working</p>
+    </div>
+    <div class="header-controls">
+      <button class="btn btn-icon" id="btn-overline" title="Toggle A&#x0305; / A' notation" aria-label="Toggle overline notation">&#x0100;</button>
+      <button class="btn btn-icon" id="btn-theme" title="Toggle dark mode" aria-label="Toggle dark mode">&#x1F319;</button>
+    </div>
+  </header>
+
+  <!-- ================================================================
+       INPUT CARD
+       ================================================================ -->
+  <div class="card">
+    <div class="form-grid">
+
+      <div class="form-row">
+        <label for="inp-n">
+          Number of variables <em>n</em>
+          <span class="label-hint" id="hint-n-range">(1 &ndash; 10)</span>
+        </label>
+        <input type="number" id="inp-n" min="1" max="10" value="3" placeholder="e.g. 3" />
+        <div class="field-error" id="err-n"></div>
+      </div>
+
+      <div class="form-row">
+        <label>Input type</label>
+        <div class="radio-group">
+          <label class="radio-label selected" id="lbl-minterm">
+            <input type="radio" name="inp-type" value="minterm" checked />
+            Minterms &Sigma;m
+          </label>
+          <label class="radio-label" id="lbl-maxterm">
+            <input type="radio" name="inp-type" value="maxterm" />
+            Maxterms &Pi;M
+          </label>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label for="inp-indices" id="lbl-indices">Minterm indices</label>
+        <input type="text" id="inp-indices" placeholder="e.g. 0, 1, 4, 5" autocomplete="off" spellcheck="false" />
+        <div class="field-error" id="err-indices"></div>
+      </div>
+
+      <details>
+        <summary>Advanced &mdash; Don&rsquo;t-care indices (optional)</summary>
+        <div class="details-body">
+          <div class="form-row">
+            <label for="inp-dc">Don&rsquo;t-care indices <span class="label-hint">comma-separated</span></label>
+            <input type="text" id="inp-dc" placeholder="e.g. 6, 7" autocomplete="off" spellcheck="false" />
+            <div class="field-error" id="err-dc"></div>
+          </div>
+        </div>
+      </details>
+
+      <div class="hint" id="hint-large-n">
+        &#9888; For <em>n</em> &gt; 8 the function space has &gt;256 minterms. The algorithm is still fast, but may take a moment on older devices.
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-primary" id="btn-simplify">Simplify &rarr;</button>
+        <button class="btn btn-secondary" id="btn-example">Load Example</button>
+      </div>
+
+    </div>
+  </div><!-- .card -->
+
+  <!-- ================================================================
+       RESULTS
+       ================================================================ -->
+  <div id="results">
+    <div class="card">
+      <div class="section-title" id="results-title">Results</div>
+
+      <div class="canonical-box" id="canonical-box"></div>
+
+      <div class="result-primary" id="primary-result">
+        <span class="result-badge badge-primary" id="primary-badge">SOP</span>
+        <div class="expr" id="primary-expr"></div>
+      </div>
+
+      <div class="result-secondary" id="secondary-result">
+        <span class="result-badge badge-secondary" id="secondary-badge">POS</span>
+        <div class="expr" id="secondary-expr"></div>
+      </div>
+
+      <div class="copy-row">
+        <button class="btn btn-secondary btn-sm" id="btn-copy">Copy result</button>
+        <span class="copy-feedback" id="copy-feedback">Copied!</span>
+      </div>
+
+      <hr class="divider" />
+
+      <div id="kmap-section"></div>
+
+      <details id="steps-section">
+        <summary>Step-by-step working</summary>
+        <div class="details-body" id="steps-body"></div>
+      </details>
+    </div>
+  </div><!-- #results -->
+
+  <!-- ================================================================
+       SELF-TEST
+       ================================================================ -->
+  <div class="card">
+    <details>
+      <summary>Run Self-Tests (Section 8 test cases)</summary>
+      <div class="details-body">
+        <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:.75rem;">
+          Runs all 10 test cases. Each is verified by brute-force truth-table check.
+        </p>
+        <button class="btn btn-secondary btn-sm" id="btn-run-tests" style="margin-bottom:1rem;">&#9654; Run Tests</button>
+        <div id="test-results"></div>
+      </div>
+    </details>
+  </div>
+
+  <footer>Boolean Function Simplifier &mdash; Dhruv, ECE, MANIT Bhopal &mdash; All logic runs client-side</footer>
+</div><!-- .page-wrap -->
+
+<script>
+"use strict";
+
+/* =========================================================================
+   CONSTANT
+   =========================================================================
+   MAX_VARS is the only constant that controls the maximum number of Boolean
+   variables. Changing this one value updates validation, hints, and variable
+   names throughout. Supports up to 26 variables (A-Z).
+   ========================================================================= */
+const MAX_VARS = 10;
+
+/* =========================================================================
+   UTILITY FUNCTIONS
+   ========================================================================= */
+
+/**
+ * Returns an array of single-letter variable names for n variables.
+ * @param {number} n - Number of variables (1..MAX_VARS).
+ * @returns {string[]} e.g. ['A','B','C'] for n=3.
+ */
+function getVarNames(n) {
+  const a = [];
+  for (let i = 0; i < n; i++) a.push(String.fromCharCode(65 + i));
+  return a;
+}
+
+/**
+ * Converts an integer index to its n-bit binary string representation.
+ * @param {number} i - Index (0..2^n-1).
+ * @param {number} n - Bit width.
+ * @returns {string} e.g. indexToBinary(5,4) === '0101'.
+ */
+function indexToBinary(i, n) {
+  return i.toString(2).padStart(n, '0');
+}
+
+/**
+ * Counts the number of '1' characters in a pattern string.
+ * Ignores '-' (wildcard) characters.
+ * @param {string} bits - Binary or QM pattern string.
+ * @returns {number}
+ */
+function countOnes(bits) {
+  let c = 0;
+  for (const ch of bits) if (ch === '1') c++;
+  return c;
+}
+
+/**
+ * Tests whether a QM pattern (possibly containing '-' wildcards) covers
+ * a specific minterm index. A '-' at position i matches any bit value.
+ * @param {string} pattern - QM pattern, e.g. '-0-'.
+ * @param {number} index   - Minterm index to test against.
+ * @param {number} n       - Number of variables.
+ * @returns {boolean} true if pattern matches index on all non-wildcard bits.
+ */
+function covers(pattern, index, n) {
+  const bits = indexToBinary(index, n);
+  for (let i = 0; i < n; i++) {
+    if (pattern[i] !== '-' && pattern[i] !== bits[i]) return false;
+  }
+  return true;
+}
+
+/**
+ * Tries to combine two QM patterns that differ in exactly one non-dash bit
+ * position. The differing bit is replaced with '-'. Returns null if the
+ * patterns differ in zero positions, two or more positions, or in any '-'
+ * position (dash mismatch across levels would produce invalid merges, but
+ * since QM only compares terms within the same round—same dash count—this
+ * cannot arise in practice).
+ * @param {string} a - First pattern.
+ * @param {string} b - Second pattern.
+ * @returns {string|null} Merged pattern, or null if not combinable.
+ */
+function combinePair(a, b) {
+  let diffCount = 0, diffPos = -1;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) {
+      diffCount++;
+      diffPos = i;
+      if (diffCount > 1) return null;
+    }
+  }
+  if (diffCount !== 1) return null;
+  return a.slice(0, diffPos) + '-' + a.slice(diffPos + 1);
+}
+
+/* =========================================================================
+   TERM-TO-EXPRESSION CONVERTERS
+   ========================================================================= */
+
+/**
+ * Converts a QM pattern to an SOP product-term string.
+ * Position encoding:
+ *   '1' -> variable uncomplement (e.g. A)
+ *   '0' -> variable complement   (e.g. A')
+ *   '-' -> skip (variable eliminated by merging)
+ * Complemented variables are wrapped in HTML span.lit-comp for the
+ * overline-toggle CSS to work.
+ * @param {string}   pattern  - QM pattern, e.g. '-01'.
+ * @param {string[]} varNames - Variable names array, e.g. ['A','B','C'].
+ * @param {boolean}  [html=true] - true = return HTML; false = plain text.
+ * @returns {string} Product term, e.g. "B'C" (plain) or HTML equivalent.
+ */
+function toSopTerm(pattern, varNames, html) {
+  if (html === undefined) html = true;
+  let term = '';
+  for (let i = 0; i < pattern.length; i++) {
+    if (pattern[i] === '1') {
+      term += html
+        ? '<span class="lit-var">' + varNames[i] + '</span>'
+        : varNames[i];
+    } else if (pattern[i] === '0') {
+      term += html
+        ? '<span class="lit-comp"><span class="lit-var">' + varNames[i] + '</span><span class="prime-sym">\'</span></span>'
+        : varNames[i] + "'";
+    }
+    // '-' -> skip
+  }
+  return term || (html ? '<em>1</em>' : '1');
+}
+
+/**
+ * Converts a QM pattern from a run on F's zero-set into a POS sum-term,
+ * applying De Morgan's law. Because the pattern represents a product term
+ * of F' (SOP of F'), each literal must be complemented when converting to
+ * a sum term of F:
+ *   '0' in pattern  ->  variable (uncomplement) in sum term
+ *   '1' in pattern  ->  variable' (complement) in sum term
+ *   '-' -> skip
+ * Multiple literals are OR-ed and the result is wrapped in parentheses
+ * when there are two or more literals.
+ * @param {string}   pattern  - QM pattern from zeros run, e.g. '00-'.
+ * @param {string[]} varNames - Variable names array.
+ * @param {boolean}  [html=true] - true = return HTML; false = plain text.
+ * @returns {string} Sum term, e.g. '(A + B)' for pattern '00'.
+ */
+function toPosTermFromPattern(pattern, varNames, html, wrapSingle) {
+  if (html === undefined) html = true;
+  const lits = [];
+  for (let i = 0; i < pattern.length; i++) {
+    if (pattern[i] === '0') {
+      // '0' in F' product → variable (uncomplemented) in F sum term
+      lits.push(html
+        ? '<span class="lit-var">' + varNames[i] + '</span>'
+        : varNames[i]);
+    } else if (pattern[i] === '1') {
+      // '1' in F' product → variable' (complemented) in F sum term
+      lits.push(html
+        ? '<span class="lit-comp"><span class="lit-var">' + varNames[i] + '</span><span class="prime-sym">\'</span></span>'
+        : varNames[i] + "'");
+    }
+  }
+  if (lits.length === 0) return html ? '<em>0</em>' : '0';
+  if (lits.length === 1) {
+    if (wrapSingle) {
+      return html ? '(' + lits[0] + ')' : '(' + lits[0] + ')';
+    }
+    return lits[0];
+  }
+  const sep = ' + ';
+  return html ? '(' + lits.join(sep) + ')' : '(' + lits.join(sep) + ')';
+}
+
+/* =========================================================================
+   QUINE-McCLUSKEY CORE ALGORITHM
+   =========================================================================
+   runQM() implements the tabular minimisation procedure:
+     1.  Build initial terms from all indices (mustCover + dontcares).
+     2.  Group terms by count of '1' bits.
+     3.  Compare only adjacent groups (groups k and k+1) — this is the key
+         optimisation that avoids the O(2^2n) brute-force comparison.
+     4.  Any two terms in adjacent groups that differ in exactly one bit are
+         merged: the differing bit is replaced by '-'. Both source terms are
+         marked as "used".
+     5.  Deduplicated merged terms form the input to the next round.
+     6.  Repeat until no merges occur.
+     7.  All terms never marked "used" are prime implicants.
+   ========================================================================= */
+
+/**
+ * Runs the Quine-McCluskey minimisation on a set of must-cover indices,
+ * using dontcares to assist merging (dontcares need not be covered).
+ *
+ * @param {number[]} mustCover - Indices that must be covered (ones or zeros).
+ * @param {number[]} dontcares - Don't-care indices (assist merging only).
+ * @param {number}   n         - Number of variables.
+ * @returns {{
+ *   primeImplicants: {pattern:string, sourceIndices:number[]}[],
+ *   steps: {round:number, groups:Object, nextTerms:Object[]}[]
+ * }}
+ */
+function runQM(mustCover, dontcares, n) {
+  const steps = [];
+  // Merge set: union of must-cover and don't-care indices
+  const allIndices = Array.from(new Set([].concat(mustCover, dontcares)));
+
+  // Initial terms — one per index, no dashes yet
+  let currentTerms = allIndices.map(function(i) {
+    return { pattern: indexToBinary(i, n), sourceIndices: [i], used: false };
+  });
+
+  const primeImplicants = [];
+
+  while (currentTerms.length > 0) {
+    // --- Group by number of '1' bits ---
+    const groups = {};
+    for (const term of currentTerms) {
+      const key = countOnes(term.pattern);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(term);
+    }
+
+    const sortedKeys = Object.keys(groups).map(Number).sort(function(a,b){ return a-b; });
+    const nextMap = new Map(); // merged pattern -> term object
+
+    // --- Compare only adjacent groups (the QM optimisation) ---
+    for (let gi = 0; gi < sortedKeys.length - 1; gi++) {
+      const gA = groups[sortedKeys[gi]];
+      const gB = groups[sortedKeys[gi + 1]];
+      for (const tA of gA) {
+        for (const tB of gB) {
+          const merged = combinePair(tA.pattern, tB.pattern);
+          if (merged !== null) {
+            tA.used = true;
+            tB.used = true;
+            const newSrc = Array.from(new Set([].concat(tA.sourceIndices, tB.sourceIndices)));
+            if (nextMap.has(merged)) {
+              // Union source indices when the same merged pattern is produced by multiple pairs
+              const ex = nextMap.get(merged);
+              ex.sourceIndices = Array.from(new Set([].concat(ex.sourceIndices, newSrc)));
+            } else {
+              nextMap.set(merged, { pattern: merged, sourceIndices: newSrc, used: false });
+            }
+          }
+        }
+      }
+    }
+
+    // Snapshot AFTER the merge loop so that .used flags correctly reflect
+    // whether each term participated in at least one merge this round.
+    const groupsSnap = {};
+    for (const k of Object.keys(groups)) {
+      groupsSnap[k] = groups[k].map(function(t) {
+        return { pattern: t.pattern, sourceIndices: t.sourceIndices.slice(), used: t.used };
+      });
+    }
+
+    // Terms never marked as used in this round are prime implicants
+    for (const term of currentTerms) {
+      if (!term.used) {
+        primeImplicants.push({ pattern: term.pattern, sourceIndices: term.sourceIndices });
+      }
+    }
+
+    const nextTerms = Array.from(nextMap.values());
+    steps.push({ round: steps.length + 1, groups: groupsSnap, nextTerms: nextTerms });
+    currentTerms = nextTerms;
+  }
+
+  // Deduplicate prime implicants by pattern string
+  const seen = new Set();
+  const uniquePIs = primeImplicants.filter(function(pi) {
+    if (seen.has(pi.pattern)) return false;
+    seen.add(pi.pattern);
+    return true;
+  });
+
+  return { primeImplicants: uniquePIs, steps: steps };
+}
+
+/**
+ * Selects a minimal cover of prime implicants for a must-cover index set.
+ *
+ * Strategy:
+ *   1. Build a PI chart: for each must-cover minterm, list which PIs cover it.
+ *   2. Find essential PIs — the only PI covering some minterm. These must
+ *      be selected.
+ *   3. Mark all minterms covered by essential PIs.
+ *   4. For any remaining uncovered minterms, greedily pick the PI that covers
+ *      the most uncovered minterms (Petrick's method gives an optimal solution
+ *      but greedy is sufficient for all common cases and is much simpler).
+ *
+ * @param {{pattern:string,sourceIndices:number[]}[]} pis - All prime implicants.
+ * @param {number[]} ones - Must-cover indices (exclude don't-cares).
+ * @param {number}   n    - Number of variables.
+ * @returns {{
+ *   selectedPIs: {pattern,sourceIndices}[],
+ *   essentialPIs: {pattern,sourceIndices}[],
+ *   piChart: Object  // minterm -> [pi-array-indices that cover it]
+ * }}
+ */
+function selectCover(pis, ones, n) {
+  if (ones.length === 0 || pis.length === 0) {
+    return { selectedPIs: [], essentialPIs: [], piChart: {} };
+  }
+
+  // Build coverage chart: piChart[m] = list of indices into pis[] that cover m
+  const piChart = {};
+  for (const m of ones) {
+    piChart[m] = [];
+    for (let p = 0; p < pis.length; p++) {
+      if (covers(pis[p].pattern, m, n)) piChart[m].push(p);
+    }
+  }
+
+  // Essential PIs: sole cover of at least one minterm
+  const essIdxSet = new Set();
+  for (const m of ones) {
+    if (piChart[m].length === 1) essIdxSet.add(piChart[m][0]);
+  }
+  const essentialPIs = Array.from(essIdxSet).map(function(i) { return pis[i]; });
+
+  // Mark minterms covered by essential PIs
+  const covered = new Set();
+  for (const piIdx of essIdxSet) {
+    for (const m of ones) {
+      if (covers(pis[piIdx].pattern, m, n)) covered.add(m);
+    }
+  }
+
+  // Greedy cover for remaining uncovered minterms
+  let remaining = ones.filter(function(m) { return !covered.has(m); });
+  const selectedPIs = essentialPIs.slice();
+  const usedIdxSet  = new Set(essIdxSet);
+
+  while (remaining.length > 0) {
+    let bestIdx = -1, bestCount = 0;
+    for (let p = 0; p < pis.length; p++) {
+      if (usedIdxSet.has(p)) continue;
+      const cnt = remaining.filter(function(m) { return covers(pis[p].pattern, m, n); }).length;
+      if (cnt > bestCount) { bestCount = cnt; bestIdx = p; }
+    }
+    if (bestIdx === -1 || bestCount === 0) break;
+    usedIdxSet.add(bestIdx);
+    selectedPIs.push(pis[bestIdx]);
+    const justCovered = remaining.filter(function(m) { return covers(pis[bestIdx].pattern, m, n); });
+    for (const m of justCovered) covered.add(m);
+    remaining = remaining.filter(function(m) { return !covered.has(m); });
+  }
+
+  return { selectedPIs: selectedPIs, essentialPIs: essentialPIs, piChart: piChart };
+}
+
+/* =========================================================================
+   MAIN SIMPLIFY FUNCTION
+   =========================================================================
+   Accepts user input, converts to ones/zeros sets, runs QM twice, and
+   returns all data needed for the result display and step rendering.
+   ========================================================================= */
+
+/**
+ * Simplifies a Boolean function given as minterms or maxterms.
+ *
+ * Internal flow:
+ *   1. Convert the given indices + don't-cares into two sets: ones (F=1)
+ *      and zeros (F=0), excluding don't-care positions from both.
+ *   2. Run QM on ones  → Simplified SOP (F expressed as sum of products).
+ *   3. Run QM on zeros → F' as simplified SOP. Apply De Morgan's law to
+ *      convert each product term of F' into a sum term of F, giving the
+ *      Simplified POS (F expressed as product of sums).
+ *
+ * @param {number[]} givenIndices - User's minterm or maxterm list (deduped).
+ * @param {number[]} dontcares    - Don't-care indices.
+ * @param {number}   n            - Number of variables.
+ * @param {boolean}  isMinterms   - true = given are minterms, false = maxterms.
+ * @returns {Object} Full result object (SOP, POS, canonical forms, steps, etc.)
+ */
+function simplify(givenIndices, dontcares, n, isMinterms) {
+  const total    = 1 << n;             // 2^n
+  const varNames = getVarNames(n);
+  const givenSet = new Set(givenIndices);
+  const dcSet    = new Set(dontcares);
+
+  // Build ones and zeros (both exclude don't-care positions)
+  let ones, zeros;
+  if (isMinterms) {
+    ones  = givenIndices.filter(function(i) { return !dcSet.has(i); });
+    zeros = [];
+    for (let i = 0; i < total; i++) {
+      if (!givenSet.has(i) && !dcSet.has(i)) zeros.push(i);
+    }
+  } else {
+    zeros = givenIndices.filter(function(i) { return !dcSet.has(i); });
+    ones  = [];
+    for (let i = 0; i < total; i++) {
+      if (!givenSet.has(i) && !dcSet.has(i)) ones.push(i);
+    }
+  }
+
+  const fv = varNames.join(',');
+
+  // Trivial: F = 0 everywhere
+  if (ones.length === 0) {
+    return {
+      sop: '<em>0</em>', pos: '<em>0</em>', sopPlain: '0', posPlain: '0',
+      canonicalSOP: 'F(' + fv + ') = 0', canonicalPOS: 'F(' + fv + ') = 0',
+      ones: ones, zeros: zeros, varNames: varNames, n: n,
+      sopSelected: [], posSelected: [], sopQM: null, posQM: null,
+      sopEssential: [], posEssential: [], sopPiChart: {}, posPiChart: {}
+    };
+  }
+  // Trivial: F = 1 everywhere
+  if (zeros.length === 0) {
+    return {
+      sop: '<em>1</em>', pos: '<em>1</em>', sopPlain: '1', posPlain: '1',
+      canonicalSOP: 'F(' + fv + ') = 1', canonicalPOS: 'F(' + fv + ') = 1',
+      ones: ones, zeros: zeros, varNames: varNames, n: n,
+      sopSelected: [], posSelected: [], sopQM: null, posQM: null,
+      sopEssential: [], posEssential: [], sopPiChart: {}, posPiChart: {}
+    };
+  }
+
+  // --- SOP: run QM on ones ---
+  const sopQM  = runQM(ones, dontcares, n);
+  const sopCov = selectCover(sopQM.primeImplicants, ones, n);
+  const sopSel = sopCov.selectedPIs;
+
+  // Sort SOP terms: shorter terms first (e.g. A before BC), then alphabetical
+  sopSel.sort(function(a, b) {
+    const textA = toSopTerm(a.pattern, varNames, false);
+    const textB = toSopTerm(b.pattern, varNames, false);
+    if (textA.length !== textB.length) return textA.length - textB.length;
+    return textA.localeCompare(textB);
+  });
+
+  const sopHtml  = sopSel.map(function(pi) { return toSopTerm(pi.pattern, varNames, true); }).join(' + ') || '<em>0</em>';
+  const sopPlain = sopSel.map(function(pi) { return toSopTerm(pi.pattern, varNames, false); }).join(' + ') || '0';
+
+  // --- POS: run QM on zeros (gets F' as SOP), then apply De Morgan ---
+  const posQM  = runQM(zeros, dontcares, n);
+  const posCov = selectCover(posQM.primeImplicants, zeros, n);
+  const posSel = posCov.selectedPIs;
+
+  // Sort POS terms: shorter terms first, then alphabetical
+  posSel.sort(function(a, b) {
+    const textA = toPosTermFromPattern(a.pattern, varNames, false, false);
+    const textB = toPosTermFromPattern(b.pattern, varNames, false, false);
+    if (textA.length !== textB.length) return textA.length - textB.length;
+    return textA.localeCompare(textB);
+  });
+
+  const wrapSinglePOS = posSel.length > 1;
+  // Each PI from the zeros-QM becomes one sum-term in F's POS expression
+  const posHtml  = posSel.map(function(pi) { return toPosTermFromPattern(pi.pattern, varNames, true, wrapSinglePOS); }).join('') || '<em>1</em>';
+  const posPlain = posSel.map(function(pi) { return toPosTermFromPattern(pi.pattern, varNames, false, wrapSinglePOS); }).join('') || '1';
+
+  return {
+    sop: sopHtml, pos: posHtml, sopPlain: sopPlain, posPlain: posPlain,
+    canonicalSOP: 'F(' + fv + ') = \u03a3m(' + ones.join(', ') + ')',
+    canonicalPOS: 'F(' + fv + ') = \u03a0M(' + zeros.join(', ') + ')',
+    ones: ones, zeros: zeros, varNames: varNames, n: n,
+    sopQM: sopQM, sopSelected: sopSel, sopEssential: sopCov.essentialPIs, sopPiChart: sopCov.piChart,
+    posQM: posQM, posSelected: posSel, posEssential: posCov.essentialPIs, posPiChart: posCov.piChart
+  };
+}
+
+/* =========================================================================
+   INPUT VALIDATION
+   ========================================================================= */
+
+/**
+ * Parses a comma-separated index string into a deduplicated integer array.
+ * Strips spaces, ignores empty tokens (trailing commas are fine), rejects
+ * any non-integer token, and range-checks each value against 0..2^n-1.
+ * @param {string} str - Raw user input string.
+ * @param {number} n   - Number of variables (for range check).
+ * @returns {{ indices:number[], error:string|null }}
+ */
+function parseIndices(str, n) {
+  if (!str.trim()) return { indices: [], error: null };
+  const max   = (1 << n) - 1;
+  const parts = str.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s !== ''; });
+  const result = [];
+  for (const p of parts) {
+    if (!/^\d+$/.test(p)) {
+      return { indices: [], error: '"' + p + '" is not a valid integer index.' };
+    }
+    const v = parseInt(p, 10);
+    if (v > max) {
+      return { indices: [], error: 'Index ' + v + ' out of range. For n=' + n + ', valid range is 0 to ' + max + '.' };
+    }
+    result.push(v);
+  }
+  return { indices: Array.from(new Set(result)), error: null };
+}
+
+/**
+ * Validates all form fields. Returns structured errors and parsed values.
+ * Never calls alert() — errors are meant for inline display.
+ * @param {{ nStr:string, indicesStr:string, dontcaresStr:string }} fd
+ * @returns {{ valid:boolean, n:number, indices:number[], dontcares:number[], errors:Object }}
+ */
+function validateForm(fd) {
+  const errors = {};
+  let n = 0, indices = [], dontcares = [];
+
+  const nv = fd.nStr.trim();
+  if (!nv || !/^\d+$/.test(nv)) {
+    errors.n = 'Please enter an integer from 1 to ' + MAX_VARS + '.';
+  } else {
+    n = parseInt(nv, 10);
+    if (n < 1 || n > MAX_VARS) errors.n = 'n must be between 1 and ' + MAX_VARS + '.';
+  }
+
+  if (!errors.n) {
+    const ri = parseIndices(fd.indicesStr, n);
+    if (ri.error) errors.indices = ri.error; else indices = ri.indices;
+
+    const rd = parseIndices(fd.dontcaresStr || '', n);
+    if (rd.error) errors.dontcares = rd.error; else dontcares = rd.indices;
+
+    if (!errors.indices && !errors.dontcares) {
+      const dcSet = new Set(dontcares);
+      const overlap = indices.find(function(i) { return dcSet.has(i); });
+      if (overlap !== undefined) {
+        errors.dontcares = 'Index ' + overlap + ' appears in both the main list and don\'t-cares.';
+      }
+    }
+  }
+
+  return { valid: Object.keys(errors).length === 0, n: n, indices: indices, dontcares: dontcares, errors: errors };
+}
+
+/* =========================================================================
+   BRUTE-FORCE TRUTH-TABLE VERIFICATION
+   ========================================================================= */
+
+/**
+ * Tests whether a given minterm index is covered by any pattern in the list.
+ * Used for brute-force verification only; not called during simplification.
+ * @param {string[]} patterns - Array of QM pattern strings.
+ * @param {number}   index    - Minterm index to test.
+ * @param {number}   n        - Number of variables.
+ * @returns {boolean}
+ */
+function evalByPatterns(patterns, index, n) {
+  for (const p of patterns) {
+    if (covers(p, index, n)) return true;
+  }
+  return false;
+}
+
+/**
+ * Brute-force verifies both simplified SOP and POS against the truth table
+ * by iterating every index 0..2^n-1 (skipping don't-cares) and checking
+ * the simplified expression's output against the expected value.
+ *
+ * SOP verification: F(i) = evalByPatterns(sopPatterns, i, n).
+ * POS verification: F'(i) = evalByPatterns(posPatterns, i, n), so F(i) = !F'(i).
+ *
+ * @param {number[]} ones        - Indices where F=1 (excl. dontcares).
+ * @param {number[]} dontcares   - Indices to skip.
+ * @param {string[]} sopPatterns - Selected SOP prime implicant patterns.
+ * @param {string[]} posPatterns - Selected POS (zeros-QM) prime implicant patterns.
+ * @param {number}   n           - Number of variables.
+ * @returns {{ sopOk:boolean, posOk:boolean, failIdx:number|null }}
+ */
+function bruteForceVerify(ones, dontcares, sopPatterns, posPatterns, n) {
+  const onesSet = new Set(ones);
+  const dcSet   = new Set(dontcares);
+  let sopOk = true, posOk = true, failIdx = null;
+  const total = 1 << n;
+  const isAllOnes = (ones.length === total);
+  const isAllZeros = (ones.length === 0);
+
+  for (let i = 0; i < total; i++) {
+    if (dcSet.has(i)) continue;
+    const expected = onesSet.has(i);
+
+    if (sopOk) {
+      let sopActual;
+      if (isAllOnes) {
+        sopActual = true;
+      } else if (isAllZeros) {
+        sopActual = false;
+      } else {
+        sopActual = evalByPatterns(sopPatterns, i, n);
+      }
+      if (sopActual !== expected) {
+        sopOk = false; failIdx = i;
+      }
+    }
+    if (posOk) {
+      let posActual;
+      if (isAllOnes) {
+        posActual = true;
+      } else if (isAllZeros) {
+        posActual = false;
+      } else {
+        // POS: F'(i) given by posPatterns. F(i) = NOT F'(i).
+        posActual = !evalByPatterns(posPatterns, i, n);
+      }
+      if (posActual !== expected) {
+        posOk = false; failIdx = (failIdx === null) ? i : failIdx;
+      }
+    }
+    if (!sopOk && !posOk) break;
+  }
+
+  return { sopOk: sopOk, posOk: posOk, failIdx: failIdx };
+}
+
+/* =========================================================================
+   K-MAP RENDERER
+   Produces an HTML <table> in Gray-code order for n=2, 3, or 4.
+   Cells are coloured green (1), red (0), or grey (X = don't-care).
+   Returns an empty string for n<2 or n>4.
+   ========================================================================= */
+
+/**
+ * Renders an HTML Karnaugh map.
+ * Gray code column/row order (00, 01, 11, 10) ensures that adjacent cells
+ * differ in exactly one variable — the fundamental property the K-map relies on.
+ * @param {number[]} ones      - Indices where F=1.
+ * @param {number[]} zeros     - Indices where F=0.
+ * @param {number[]} dontcares - Don't-care indices.
+ * @param {number}   n         - Number of variables.
+ * @returns {string} HTML string.
+ */
+function renderKmap(ones, zeros, dontcares, n) {
+  if (n < 2 || n > 4) return '';
+
+  const onesSet = new Set(ones);
+  const dcSet   = new Set(dontcares);
+  const vn      = getVarNames(n);
+
+  // Gray code: indices 0,1,3,2 correspond to labels 00,01,11,10
+  const gray2   = [0, 1, 3, 2];
+  const labels2 = ['00', '01', '11', '10'];
+
+  function cellCls(idx) {
+    if (dcSet.has(idx))   return 'kmap-dc';
+    if (onesSet.has(idx)) return 'kmap-one';
+    return 'kmap-zero';
+  }
+  function cellVal(idx) {
+    if (dcSet.has(idx))   return 'X';
+    if (onesSet.has(idx)) return '1';
+    return '0';
+  }
+
+  let tbl = '<div class="kmap-wrap"><table class="kmap-table">';
+
+  if (n === 2) {
+    tbl += '<tr><th>' + vn[0] + '\\' + vn[1] + '</th><th>0</th><th>1</th></tr>';
+    for (let a = 0; a < 2; a++) {
+      tbl += '<tr><th>' + a + '</th>';
+      for (let b = 0; b < 2; b++) {
+        const idx = a * 2 + b;
+        tbl += '<td class="' + cellCls(idx) + '">' + cellVal(idx) + '</td>';
+      }
+      tbl += '</tr>';
+    }
+  } else if (n === 3) {
+    tbl += '<tr><th>' + vn[0] + '\\' + vn[1] + vn[2] + '</th>';
+    for (const lbl of labels2) tbl += '<th>' + lbl + '</th>';
+    tbl += '</tr>';
+    for (let a = 0; a < 2; a++) {
+      tbl += '<tr><th>' + a + '</th>';
+      for (const bcG of gray2) {
+        const b = (bcG >> 1) & 1, c = bcG & 1;
+        const idx = a * 4 + b * 2 + c;
+        tbl += '<td class="' + cellCls(idx) + '">' + cellVal(idx) + '</td>';
+      }
+      tbl += '</tr>';
+    }
+  } else { // n === 4
+    tbl += '<tr><th>' + vn[0] + vn[1] + '\\' + vn[2] + vn[3] + '</th>';
+    for (const lbl of labels2) tbl += '<th>' + lbl + '</th>';
+    tbl += '</tr>';
+    for (const abG of gray2) {
+      const a = (abG >> 1) & 1, b = abG & 1;
+      tbl += '<tr><th>' + a + '' + b + '</th>';
+      for (const cdG of gray2) {
+        const c = (cdG >> 1) & 1, d = cdG & 1;
+        const idx = a * 8 + b * 4 + c * 2 + d;
+        tbl += '<td class="' + cellCls(idx) + '">' + cellVal(idx) + '</td>';
+      }
+      tbl += '</tr>';
+    }
+  }
+
+  tbl += '</table></div>';
+
+  return '<div class="step-section-title">K-Map (n=' + n + ')</div>'
+    + '<div style="font-size:.8rem;color:var(--text-muted);margin-bottom:.75rem;">'
+    + '<span style="background:var(--one-cell);padding:.15rem .4rem;border-radius:3px;">1</span>&nbsp;F=1&emsp;'
+    + '<span style="background:var(--zero-cell);padding:.15rem .4rem;border-radius:3px;">0</span>&nbsp;F=0&emsp;'
+    + '<span style="background:var(--dc-cell);padding:.15rem .4rem;border-radius:3px;">X</span>&nbsp;Don\'t-care'
+    + '</div>'
+    + tbl;
+}
+
+/* =========================================================================
+   STEP-BY-STEP DISPLAY RENDERER
+   ========================================================================= */
+
+/**
+ * Builds an HTML string showing all merge rounds, the prime implicant
+ * summary table, and the prime implicant chart for a single QM run.
+ *
+ * @param {Object}   qmResult     - Return value from runQM().
+ * @param {Object[]} selectedPIs  - PIs chosen by selectCover().
+ * @param {Object[]} essentialPIs - Essential PIs from selectCover().
+ * @param {Object}   piChart      - { minterm: [piIndexes...] } from selectCover().
+ * @param {number[]} mustCover    - Indices that must be covered (for chart columns).
+ * @param {string[]} varNames     - Variable name array.
+ * @param {string}   label        - Heading string for this section.
+ * @returns {string} HTML string.
+ */
+function renderSteps(qmResult, selectedPIs, essentialPIs, piChart, mustCover, varNames, label) {
+  if (!qmResult || qmResult.steps.length === 0) return '';
+
+  const essPatterns = new Set(essentialPIs.map(function(p) { return p.pattern; }));
+  const selPatterns = new Set(selectedPIs.map(function(p) { return p.pattern; }));
+
+  let html = '<div class="step-section-title">' + label + '</div>';
+
+  // ---- Merge rounds ----
+  for (const step of qmResult.steps) {
+    html += '<p style="font-weight:700;font-size:.85rem;margin:.6rem 0 .3rem;">'
+          + 'Round ' + step.round + ' &mdash; Grouping &amp; Merging</p>';
+    html += '<table class="steps-table">'
+          + '<tr><th>Group&nbsp;(#1s)</th><th>Pattern</th><th>Covers&nbsp;indices</th><th>Merged?</th></tr>';
+
+    const sortedKeys = Object.keys(step.groups).map(Number).sort(function(a, b) { return a - b; });
+    for (const k of sortedKeys) {
+      for (const t of step.groups[k]) {
+        // t.used is captured AFTER the merge loop in runQM — it is reliable.
+        const used = !!t.used;
+        html += '<tr class="' + (used ? 'used' : '') + '">'
+              + '<td>' + k + '</td>'
+              + '<td>' + t.pattern + '</td>'
+              + '<td>' + t.sourceIndices.join(', ') + '</td>'
+              + '<td>' + (used ? '&#10003;' : '&mdash;') + '</td>'
+              + '</tr>';
+      }
+    }
+    html += '</table>';
+    if (step.nextTerms.length > 0) {
+      html += '<p style="font-size:.82rem;color:var(--text-muted);margin:.25rem 0 .5rem;">'
+            + '&rarr; Produced: ' + step.nextTerms.map(function(t) { return t.pattern; }).join(', ')
+            + '</p>';
+    }
+  }
+
+  // ---- Prime implicants summary ----
+  html += '<div class="step-section-title">Prime Implicants</div>'
+        + '<table class="steps-table">'
+        + '<tr><th>Pattern</th><th>Covers&nbsp;indices</th><th>Expression</th><th>Essential?</th><th>Selected?</th></tr>';
+
+  for (const pi of qmResult.primeImplicants) {
+    const isEss = essPatterns.has(pi.pattern);
+    const isSel = selPatterns.has(pi.pattern);
+    html += '<tr class="' + (isEss ? 'essential' : '') + '">'
+          + '<td>' + pi.pattern + '</td>'
+          + '<td>' + pi.sourceIndices.join(', ') + '</td>'
+          + '<td>' + toSopTerm(pi.pattern, varNames, false) + '</td>'
+          + '<td>' + (isEss ? '&#9733; Yes' : 'No') + '</td>'
+          + '<td>' + (isSel ? '&#10003;' : '') + '</td>'
+          + '</tr>';
+  }
+  html += '</table>';
+
+  // ---- Prime Implicant Chart (skip for large functions) ----
+  if (mustCover.length > 0 && mustCover.length <= 24) {
+    // Build pattern -> index map once to avoid indexOf inside loops.
+    const piIdxMap = new Map();
+    qmResult.primeImplicants.forEach(function(pi, idx) { piIdxMap.set(pi.pattern, idx); });
+
+    html += '<div class="step-section-title">Prime Implicant Chart</div>'
+          + '<div class="pi-chart"><table class="steps-table">'
+          + '<tr><th>PI Pattern</th>'
+          + mustCover.map(function(m) { return '<th>' + m + '</th>'; }).join('')
+          + '<th>Ess?</th></tr>';
+
+    for (const pi of qmResult.primeImplicants) {
+      const isEss = essPatterns.has(pi.pattern);
+      const piIdx = piIdxMap.get(pi.pattern);
+      let cells = '';
+      for (const m of mustCover) {
+        const hit = Array.isArray(piChart[m]) && piChart[m].includes(piIdx);
+        cells += '<td class="' + (hit ? 'pi-check' : '') + '">' + (hit ? '&times;' : '') + '</td>';
+      }
+      html += '<tr class="' + (isEss ? 'pi-essential-row' : '') + '">'
+            + '<td>' + pi.pattern + '</td>'
+            + cells
+            + '<td>' + (isEss ? '&#9733;' : '') + '</td>'
+            + '</tr>';
+    }
+    html += '</table></div>';
+  }
+
+  return html;
+}
+
+/* =========================================================================
+   SELF-TEST SUITE
+   All 10 test cases from Section 8 of the specification.
+   Each is verified by brute-force truth-table comparison.
+   ========================================================================= */
+
+const TEST_CASES = [
+  { label: 'n=3, \u03a3m(0,1,4,5)',   n: 3, type: 'minterm', indices: [0,1,4,5],   dc: [] },
+  { label: 'n=3, \u03a0M(2,3,6,7)',   n: 3, type: 'maxterm', indices: [2,3,6,7],   dc: [] },
+  { label: 'n=3, \u03a3m(3,5,6,7)',   n: 3, type: 'minterm', indices: [3,5,6,7],   dc: [] },
+  { label: 'n=3, \u03a0M(0,1,2)',     n: 3, type: 'maxterm', indices: [0,1,2],     dc: [] },
+  { label: 'n=2, \u03a3m(1,2)',       n: 2, type: 'minterm', indices: [1,2],       dc: [] },
+  { label: 'n=3, \u03a3m(1,3,5,7)',   n: 3, type: 'minterm', indices: [1,3,5,7],   dc: [] },
+  { label: 'n=4, \u03a3m(0,1,2,3)',   n: 4, type: 'minterm', indices: [0,1,2,3],   dc: [] },
+  { label: 'n=2, \u03a3m(0,1,2,3)',   n: 2, type: 'minterm', indices: [0,1,2,3],   dc: [] },
+  { label: 'n=3, \u03a3m() empty',    n: 3, type: 'minterm', indices: [],          dc: [] },
+  { label: 'n=3, \u03a0M() empty',    n: 3, type: 'maxterm', indices: [],          dc: [] },
+];
+
+/**
+ * Runs all self-tests and returns an array of per-test result objects.
+ * @returns {Array<{label,sopPlain,posPlain,sopOk,posOk,failIdx}>}
+ */
+function runSelfTests() {
+  return TEST_CASES.map(function(tc) {
+    const isMinterms = tc.type === 'minterm';
+    const res = simplify(tc.indices, tc.dc, tc.n, isMinterms);
+    const sopPats = res.sopSelected.map(function(p) { return p.pattern; });
+    const posPats = res.posSelected.map(function(p) { return p.pattern; });
+    const bfv = bruteForceVerify(res.ones, tc.dc, sopPats, posPats, tc.n);
+    return {
+      label:    tc.label,
+      sopPlain: res.sopPlain,
+      posPlain: res.posPlain,
+      sopOk:    bfv.sopOk,
+      posOk:    bfv.posOk,
+      failIdx:  bfv.failIdx
+    };
+  });
+}
+
+/* =========================================================================
+   DOM HELPERS
+   ========================================================================= */
+
+/**
+ * Shows or hides a field-level inline error message.
+ * @param {string}      id  - ID of the .field-error span.
+ * @param {string|null} msg - Error text, or null to clear.
+ */
+function setFieldError(id, msg) {
+  const el  = document.getElementById(id);
+  const inp = document.getElementById(id.replace('err-', 'inp-'));
+  if (!el) return;
+  if (msg) {
+    el.textContent = msg;
+    el.classList.add('visible');
+    if (inp) inp.classList.add('error');
+  } else {
+    el.textContent = '';
+    el.classList.remove('visible');
+    if (inp) inp.classList.remove('error');
+  }
+}
+
+function clearErrors() {
+  ['n', 'indices', 'dc'].forEach(function(k) { setFieldError('err-' + k, null); });
+}
+
+/* =========================================================================
+   SIMPLIFY HANDLER
+   Reads the form, validates, runs simplify(), renders results.
+   Never uses alert().
+   ========================================================================= */
+
+function handleSimplify() {
+  clearErrors();
+
+  const nStr       = document.getElementById('inp-n').value;
+  const typeVal    = document.querySelector('input[name="inp-type"]:checked').value;
+  const indicesStr = document.getElementById('inp-indices').value;
+  const dcStr      = document.getElementById('inp-dc').value;
+
+  const vr = validateForm({ nStr: nStr, indicesStr: indicesStr, dontcaresStr: dcStr });
+
+  if (vr.errors.n)        setFieldError('err-n', vr.errors.n);
+  if (vr.errors.indices)  setFieldError('err-indices', vr.errors.indices);
+  if (vr.errors.dontcares) setFieldError('err-dc', vr.errors.dontcares);
+  if (!vr.valid) return;
+
+  const isMinterms = typeVal === 'minterm';
+  const res = simplify(vr.indices, vr.dontcares, vr.n, isMinterms);
+
+  // Show results section
+  const resultsEl = document.getElementById('results');
+  resultsEl.style.display = 'block';
+  resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Canonical forms
+  document.getElementById('canonical-box').innerHTML =
+    '<div>' + res.canonicalSOP + '</div><div>' + res.canonicalPOS + '</div>';
+
+  // Primary = SOP when minterms given, POS when maxterms given
+  const primaryBadge  = isMinterms ? 'SOP' : 'POS';
+  const secondaryBadge = isMinterms ? 'POS' : 'SOP';
+  const primaryExpr   = isMinterms ? res.sop   : res.pos;
+  const secondaryExpr = isMinterms ? res.pos   : res.sop;
+  const primaryPlain  = isMinterms ? res.sopPlain : res.posPlain;
+
+  document.getElementById('primary-badge').textContent   = primaryBadge;
+  document.getElementById('secondary-badge').textContent = secondaryBadge;
+
+  const fLabel = 'F(' + res.varNames.join(',') + ') = ';
+  document.getElementById('primary-expr').innerHTML   = fLabel + primaryExpr;
+  document.getElementById('secondary-expr').innerHTML = fLabel + secondaryExpr;
+
+  // Store plain result for copy button
+  document.getElementById('btn-copy').dataset.copy = 'F = ' + primaryPlain;
+
+  // K-map
+  document.getElementById('kmap-section').innerHTML =
+    renderKmap(res.ones, res.zeros, vr.dontcares, vr.n);
+
+  // Steps
+  let stepsHtml = '';
+  if (res.sopQM) {
+    stepsHtml += renderSteps(
+      res.sopQM, res.sopSelected, res.sopEssential, res.sopPiChart,
+      res.ones, res.varNames, 'SOP Working &mdash; QM on ones (F=1 set)'
+    );
+  }
+  if (res.posQM) {
+    stepsHtml += '<hr class="divider">';
+    stepsHtml += renderSteps(
+      res.posQM, res.posSelected, res.posEssential, res.posPiChart,
+      res.zeros, res.varNames,
+      "POS Working &mdash; QM on zeros (F'=1 set), then De Morgan gives F's POS"
+    );
+  }
+  document.getElementById('steps-body').innerHTML =
+    stepsHtml || '<p style="color:var(--text-muted)">Trivial function &mdash; no working needed.</p>';
+}
+
+/* =========================================================================
+   SELF-TEST RENDERER
+   ========================================================================= */
+
+function handleRunTests() {
+  const container = document.getElementById('test-results');
+  container.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem;">Running&hellip;</p>';
+
+  setTimeout(function() {
+    const results = runSelfTests();
+    const allPass = results.every(function(r) { return r.sopOk && r.posOk; });
+
+    let html = '<div style="font-size:.85rem;">'
+      + '<div class="test-row" style="font-weight:700;font-size:.8rem;color:var(--text-muted);">'
+      + '<div>Test case</div><div>SOP (actual)</div><div>POS (actual)</div><div>Brute-force</div>'
+      + '</div>';
+
+    for (const r of results) {
+      const pass = r.sopOk && r.posOk;
+      html += '<div class="test-row">'
+        + '<div class="test-label">' + r.label + '</div>'
+        + '<div style="font-family:var(--mono)">' + r.sopPlain + '</div>'
+        + '<div style="font-family:var(--mono)">' + r.posPlain + '</div>'
+        + '<div class="' + (pass ? 'test-pass' : 'test-fail') + '">'
+        + (pass ? 'PASS &#10003;' : 'FAIL &#10007;') + '</div>'
+        + '</div>';
+    }
+
+    html += '</div>'
+      + '<p style="margin-top:.75rem;font-weight:700;color:'
+      + (allPass ? 'var(--success)' : 'var(--error)') + ';">'
+      + (allPass ? '&#10003; All 10 tests passed.' : '&#10007; Some tests failed. See above.')
+      + '</p>';
+
+    container.innerHTML = html;
+  }, 40);
+}
+
+/* =========================================================================
+   DOM EVENT WIRING
+   ========================================================================= */
+
+document.addEventListener('DOMContentLoaded', function() {
+
+  // Update hint and input max from the single MAX_VARS constant
+  document.getElementById('hint-n-range').textContent = '(1 \u2013 ' + MAX_VARS + ')';
+  document.getElementById('inp-n').setAttribute('max', MAX_VARS);
+
+  // ---- Radio: Minterms / Maxterms ----
+  function updateTypeUI() {
+    const isMin = document.querySelector('input[name="inp-type"]:checked').value === 'minterm';
+    document.getElementById('lbl-minterm').classList.toggle('selected', isMin);
+    document.getElementById('lbl-maxterm').classList.toggle('selected', !isMin);
+    document.getElementById('lbl-indices').textContent = isMin ? 'Minterm indices' : 'Maxterm indices';
+    document.getElementById('inp-indices').placeholder = isMin ? 'e.g. 0, 1, 4, 5' : 'e.g. 2, 3, 6, 7';
+  }
+  document.querySelectorAll('input[name="inp-type"]').forEach(function(r) {
+    r.addEventListener('change', updateTypeUI);
+  });
+  document.getElementById('lbl-minterm').addEventListener('click', function() {
+    document.querySelector('input[value="minterm"]').checked = true;
+    updateTypeUI();
+  });
+  document.getElementById('lbl-maxterm').addEventListener('click', function() {
+    document.querySelector('input[value="maxterm"]').checked = true;
+    updateTypeUI();
+  });
+
+  // ---- n input → large-n hint ----
+  document.getElementById('inp-n').addEventListener('input', function() {
+    const v = parseInt(this.value, 10);
+    document.getElementById('hint-large-n').classList.toggle('visible', !isNaN(v) && v > 8);
+  });
+
+  // ---- Simplify ----
+  document.getElementById('btn-simplify').addEventListener('click', handleSimplify);
+  ['inp-n', 'inp-indices', 'inp-dc'].forEach(function(id) {
+    document.getElementById(id).addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') handleSimplify();
+    });
+  });
+
+  // ---- Load Example ----
+  document.getElementById('btn-example').addEventListener('click', function() {
+    document.getElementById('inp-n').value = '3';
+    document.querySelector('input[value="minterm"]').checked = true;
+    updateTypeUI();
+    document.getElementById('inp-indices').value = '0, 1, 4, 5';
+    document.getElementById('inp-dc').value = '';
+    document.getElementById('hint-large-n').classList.remove('visible');
+    clearErrors();
+    handleSimplify();
+  });
+
+  // ---- Copy result ----
+  document.getElementById('btn-copy').addEventListener('click', function() {
+    const text = this.dataset.copy || '';
+    if (!text) return;
+    const showFeedback = function() {
+      const fb = document.getElementById('copy-feedback');
+      fb.classList.add('visible');
+      setTimeout(function() { fb.classList.remove('visible'); }, 2000);
+    };
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(showFeedback).catch(function() {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showFeedback();
+      });
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showFeedback();
+    }
+  });
+
+  // ---- Dark mode ----
+  const btnTheme = document.getElementById('btn-theme');
+  btnTheme.addEventListener('click', function() {
+    const isDark = document.body.dataset.theme === 'dark';
+    document.body.dataset.theme = isDark ? 'light' : 'dark';
+    btnTheme.textContent = isDark ? '\uD83C\uDF19' : '\u2600\uFE0F';
+  });
+
+  // ---- Overline toggle (A' vs Ā) ----
+  const btnOver = document.getElementById('btn-overline');
+  btnOver.addEventListener('click', function() {
+    const isOver = document.body.dataset.overline === 'true';
+    document.body.dataset.overline = isOver ? 'false' : 'true';
+    btnOver.style.fontWeight = isOver ? 'normal' : '900';
+    btnOver.title = isOver ? "Switch to overline notation (\u0100)" : "Switch to prime notation (A')";
+  });
+
+  // ---- Self-test ----
+  document.getElementById('btn-run-tests').addEventListener('click', handleRunTests);
+
+  // Auto-load example on startup
+  document.getElementById('btn-example').click();
+});
+</script>
+</body>
+</html>
